@@ -1,17 +1,44 @@
 <script setup>
 import { ref } from 'vue'
 
-// Esta variable reactiva guardará en tiempo real lo que el usuario escriba
+// Variable reactiva para el cuadro de texto
 const entradaTexto = ref('')
 
-// Funciones temporales para ver que los botones respondan
-const guardarComo = (tipo) => {
+// Función principal para conectar con el Backend
+const guardarComo = async (tipo) => {
+  // Validación inicial rápida en el Frontend
   if (!entradaTexto.value.trim()) {
     alert('Por favor, escribe o dicta una idea antes de guardar.')
     return
   }
-  alert(`Guardando como "${tipo}": \n"${entradaTexto.value}"`)
-  // Luego acá limpiaremos el campo o procesaremos con la API
+
+  try {
+    // Hacemos el puente usando fetch apuntando a tu API en XAMPP
+    const respuesta = await fetch('http://localhost/api-agenda/guardar.php', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        contenido: entradaTexto.value,
+        tipo_origen: tipo
+      })
+    })
+
+    // Parseamos la respuesta JSON del servidor
+    const datos = await respuesta.json()
+
+    if (respuesta.ok && datos.success) {
+      alert(`¡Éxito!: ${datos.mensaje}`)
+      entradaTexto.value = '' // Limpiamos la caja de texto para la siguiente idea
+    } else {
+      alert(`Hubo un problema: ${datos.error || 'Error desconocido'}`)
+    }
+
+  } catch (error) {
+    console.error('Error en la conexión:', error)
+    alert('No se pudo conectar con el servidor. Asegúrate de que XAMPP (Apache/MySQL) esté corriendo.')
+  }
 }
 </script>
 
