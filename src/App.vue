@@ -1,45 +1,62 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 
-// Variable reactiva para el cuadro de texto
+// Variables reactivas
 const entradaTexto = ref('')
+const elementos = ref([]) // Acá guardaremos la lista para el barrido
 
-// Función principal para conectar con el Backend
+// Función real para leer los datos desde la base de datos
+const obtenerElementos = async () => {
+  try {
+    const respuesta = await fetch('http://localhost/api-agenda/listar.php')
+    if (respuesta.ok) {
+      const datos = await respuesta.json()
+      elementos.value = datos // Reemplazamos los datos simulados por los reales de MySQL
+    } else {
+      console.error('Error al traer los elementos del servidor')
+    }
+  } catch (error) {
+    console.error('Error de conexión al listar:', error)
+  }
+}
+
+// Función principal para conectar con el Backend (Guardar)
 const guardarComo = async (tipo) => {
-  // Validación inicial rápida en el Frontend
   if (!entradaTexto.value.trim()) {
     alert('Por favor, escribe o dicta una idea antes de guardar.')
     return
   }
 
   try {
-    // Hacemos el puente usando fetch apuntando a tu API en XAMPP
     const respuesta = await fetch('http://localhost/api-agenda/guardar.php', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         contenido: entradaTexto.value,
         tipo_origen: tipo
       })
     })
 
-    // Parseamos la respuesta JSON del servidor
     const datos = await respuesta.json()
 
     if (respuesta.ok && datos.success) {
       alert(`¡Éxito!: ${datos.mensaje}`)
-      entradaTexto.value = '' // Limpiamos la caja de texto para la siguiente idea
+      entradaTexto.value = '' 
+      obtenerElementos()
+      // Luego de guardar, refrescaremos la lista automáticamente
     } else {
       alert(`Hubo un problema: ${datos.error || 'Error desconocido'}`)
     }
-
   } catch (error) {
     console.error('Error en la conexión:', error)
-    alert('No se pudo conectar con el servidor. Asegúrate de que XAMPP (Apache/MySQL) esté corriendo.')
+    alert('No se pudo conectar con el servidor.')
   }
 }
+
+// Al montar el componente, hacemos el barrido inicial de datos
+onMounted(() => {
+  obtenerElementos()
+})
 </script>
 
 <template>
@@ -68,6 +85,32 @@ const guardarComo = async (tipo) => {
         </button>
       </div>
     </section>
+
+    <section class="seccion-lista">
+      <h2>Notas Recientes</h2>
+      
+      <div v-if="elementos.length === 0" class="lista-vacia">
+        No hay elementos registrados hoy.
+      </div>
+
+      <div v-else class="lista-elementos">
+        <div 
+          v-for="item in elementos" 
+          :key="item.id_elemento" 
+          :class="['tarjeta-item', `tarjeta-${item.tipo_origen}`]"
+        >
+          <div class="tarjeta-icono">
+            <span v-if="item.tipo_origen === 'idea'">💡</span>
+            <span v-if="item.tipo_origen === 'evento'">📅</span>
+            <span v-if="item.tipo_origen === 'alarma'">⏰</span>
+          </div>
+          <div class="tarjeta-cuerpo">
+            <p class="tarjeta-texto">{{ item.contenido }}</p>
+            <span class="tarjeta-fecha">{{ item.fecha_creacion }}</span>
+          </div>
+        </div>
+      </div>
+    </section>
   </main>
 </template>
 
@@ -86,6 +129,7 @@ const guardarComo = async (tipo) => {
   font-weight: 600;
   margin-bottom: 25px;
   color: #1a1a1a;
+  text-align: center;
 }
 
 /* Caja de texto Light & Clean */
@@ -117,7 +161,6 @@ const guardarComo = async (tipo) => {
   margin-top: 15px;
 }
 
-/* Estilo base de los botones móviles */
 .btn {
   display: flex;
   flex-direction: column;
@@ -142,19 +185,91 @@ const guardarComo = async (tipo) => {
   transform: scale(0.95);
 }
 
-/* Variaciones sutiles de color para cada intención */
-.btn-idea:hover, .btn-idea:active {
-  background-color: #f0f7ff;
-  border-color: #bcd7ff;
+.btn-idea:hover, .btn-idea:active { background-color: #f0f7ff; border-color: #bcd7ff; }
+.btn-evento:hover, .btn-evento:active { background-color: #fff9f0; border-color: #ffe3bc; }
+.btn-alarma:hover, .btn-alarma:active { background-color: #fff2f2; border-color: #ffcccc; }
+
+/* --- ESTILOS DE LA NUEVA SECCIÓN DE LISTADO --- */
+.seccion-lista {
+  margin-top: 40px;
 }
 
-.btn-evento:hover, .btn-evento:active {
-  background-color: #fff9f0;
-  border-color: #ffe3bc;
+.seccion-lista h2 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #666;
+  margin-bottom: 15px;
 }
 
-.btn-alarma:hover, .btn-alarma:active {
-  background-color: #fff2f2;
-  border-color: #ffcccc;
+.lista-vacia {
+  text-align: center;
+  color: #999;
+  font-size: 0.9rem;
+  padding: 20px;
+  border: 1px dashed #e0e0e0;
+  border-radius: 12px;
 }
+
+.lista-elementos {
+  display: flex;
+  flex-direction: column; /* En celular van en lista vertical, súper práctico */
+  gap: 12px;
+  padding-bottom: 10px;
+}
+
+/* Tarjetas base con diseño limpio */
+.tarjeta-item {
+  display: flex;
+  align-items: flex-start;
+  padding: 14px;
+  border-radius: 12px;
+  border: 1px solid #f0f0f0;
+  transition: transform 0.2s ease;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* --- ADAPTACIÓN INTELIGENTE (Para Laptop / Pantallas Grandes) --- */
+@media (min-width: 600px) {
+  .lista-elementos {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr); /* En la laptop se ponen los 3 en horizontal automáticos */
+    gap: 12px;
+  }
+  
+  .tarjeta-item {
+    height: 100%; /* Hace que todas tengan la misma altura visual en la fila */
+  }
+}
+
+.tarjeta-icono {
+  font-size: 1.3rem;
+  margin-right: 12px;
+  margin-top: 2px;
+}
+
+.tarjeta-cuerpo {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.tarjeta-texto {
+  font-size: 0.95rem;
+  margin: 0 0 6px 0;
+  line-height: 1.4;
+  color: #2c2c2c;
+  text-align: left;
+}
+
+.tarjeta-fecha {
+  font-size: 0.75rem;
+  color: #999;
+  text-align: left;
+}
+
+/* Variaciones de fondo sutiles para el listado */
+.tarjeta-idea { background-color: #f8fbff; border-color: #e6f0fa; }
+.tarjeta-evento { background-color: #fffdf9; border-color: #fbf3e6; }
+.tarjeta-alarma { background-color: #fffbfa; border-color: #fae8e6; }
 </style>
